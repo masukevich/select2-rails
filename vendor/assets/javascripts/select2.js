@@ -1369,7 +1369,6 @@ the specific language governing permissions and limitations under the Apache Lic
          */
         // abstract
         open: function () {
-
             if (!this.shouldOpen()) return false;
 
             this.opening();
@@ -1419,7 +1418,53 @@ the specific language governing permissions and limitations under the Apache Lic
                         if (self.opts.selectOnBlur) {
                             self.selectHighlighted({noFocus: true});
                         }
-                        self.close();
+                        // BEGIN
+                        mask.hide();
+                        var elementFromPoint = $(document.elementFromPoint(e.clientX, e.clientY));
+                        mask.show();
+
+                        // check whether the event occurred inside the select2 control (the control itself was clicked, for example) and therefore it should stay in focus
+                        // or outside of the select2 control (another control should now be activated)
+
+                        if ($.contains(self.container[0], elementFromPoint[0])) {
+                            // the event was on the current select2 control so just put it in focus
+                            // (we do not pass to the select2 control the actual event (e.g. `mousedown`) since that will cause the dropdown to open again
+                            self.close({focus:true});
+                        } else {
+                            self.close({focus:false});
+                            // the event was on a control outside of the select2 control
+
+                            // fire blur
+                            self.opts.element.trigger($.Event("select2-blur"));
+
+                            // get the element that should have gotten the focus
+                            // it is either the element itself (if its focusable) or the first ancestor which is focusable
+                            var elementToFocus = elementFromPoint.add(elementFromPoint.parents()).filter(':focusable');
+
+                          if (elementToFocus.length > 0) {
+                               elementToFocus[0].focus()
+                           }
+
+                           // create a new event according to the original event the mask element recieved
+                           if (e.type === 'touchstart') {
+                                                           var simulatedEvent = document.createEvent("UIEvent");
+                                simulatedEvent.initUIEvent('touchstart', true, true, e.view, e.originalEvent.detail, e.screenX, e.screenY, 0, 0, e.ctrlKey, e.altKey, e.shiftKey, e.metaKey, e.button, e.relatedTarget);
+
+                                // fire the event
+                               elementFromPoint[0].dispatchEvent(simulatedEvent);
+                            } else {
+                                // we create a `mousedown` since this handler only recieves `mousedown` events (the reason is the during the mousedown processing the mask is hidden and therefore cannot recieve click event)
+                                var mouseDownSimulatedEvent = document.createEvent("MouseEvents"),
+                                    clickSimulatedEvent = document.createEvent("MouseEvents");
+                                mouseDownSimulatedEvent.initMouseEvent("mousedown", true, true, e.view, e.originalEvent.detail, e.screenX, e.screenY, 0, 0, e.ctrlKey, e.altKey, e.shiftKey, e.metaKey, e.button, e.relatedTarget);
+                                clickSimulatedEvent.initMouseEvent("click", true, true, e.view, e.originalEvent.detail, e.screenX, e.screenY, 0, 0, e.ctrlKey, e.altKey, e.shiftKey, e.metaKey, e.button, e.relatedTarget);
+
+                               // fire the events
+                                elementFromPoint[0].dispatchEvent(mouseDownSimulatedEvent);
+                                elementFromPoint[0].dispatchEvent(clickSimulatedEvent);
+                            }
+                        }
+                        // END
                         e.preventDefault();
                         e.stopPropagation();
                     }
@@ -2919,7 +2964,6 @@ the specific language governing permissions and limitations under the Apache Lic
             this.resizeSearch();
 
             this.parent.opening.apply(this, arguments);
-
             this.focusSearch();
 
             // initializes search's value with nextSearchTerm (if defined by user)
